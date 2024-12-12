@@ -1,101 +1,163 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Board from "@/components/Board";
+import WinnerMessage from "@/components/WinnerMessage";
+import ThemeToggle from "@/components/ThemeToggle";
+
+type Player = "x" | "circle";
+type Winner = Player | "draw" | null;
+
+const winningCombinations = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [board, setBoard] = useState<(Player | null)[]>(Array(9).fill(null));
+  const [isCircleTurn, setIsCircleTurn] = useState(false);
+  const [winner, setWinner] = useState<Winner>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [mouseX, setMouseX] = useState(0);
+  const [mouseY, setMouseY] = useState(0);
+
+  // States for scoreboard
+  const [xWins, setXWins] = useState<number>(0);
+  const [oWins, setOWins] = useState<number>(0);
+  const [drawCount, setDrawCount] = useState<number>(0);
+
+  useEffect(() => {
+    const storedXWins = localStorage.getItem("xWins");
+    const storedOWins = localStorage.getItem("oWins");
+    const storedDraws = localStorage.getItem("drawCount");
+
+    if (storedXWins) setXWins(parseInt(storedXWins, 10));
+    if (storedOWins) setOWins(parseInt(storedOWins, 10));
+    if (storedDraws) setDrawCount(parseInt(storedDraws, 10));
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMouseX(e.clientX);
+      setMouseY(e.clientY);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  const checkForWin = useCallback(
+    (player: Player): boolean => {
+      return winningCombinations.some((combo) =>
+        combo.every((index) => board[index] === player)
+      );
+    },
+    [board]
+  );
+
+  const checkForDraw = useCallback((): boolean => {
+    return board.every((cell) => cell !== null);
+  }, [board]);
+
+  const handleCellClick = (index: number) => {
+    if (board[index] !== null || winner) return;
+
+    const currentPlayer: Player = isCircleTurn ? "circle" : "x";
+    const newBoard = [...board];
+    newBoard[index] = currentPlayer;
+    setBoard(newBoard);
+    setIsCircleTurn(!isCircleTurn);
+  };
+
+  useEffect(() => {
+    if (winner) return;
+
+    const currentPlayer = !isCircleTurn ? "circle" : "x";
+    if (checkForWin(currentPlayer)) {
+      setWinner(currentPlayer);
+      if (currentPlayer === "x") {
+        setXWins((prev) => {
+          const newVal = prev + 1;
+          localStorage.setItem("xWins", newVal.toString());
+          return newVal;
+        });
+      } else {
+        setOWins((prev) => {
+          const newVal = prev + 1;
+          localStorage.setItem("oWins", newVal.toString());
+          return newVal;
+        });
+      }
+    } else if (checkForDraw()) {
+      setWinner("draw");
+      setDrawCount((prev) => {
+        const newVal = prev + 1;
+        localStorage.setItem("drawCount", newVal.toString());
+        return newVal;
+      });
+    }
+  }, [board, isCircleTurn, winner, checkForWin, checkForDraw]);
+
+  const restartGame = () => {
+    setBoard(Array(9).fill(null));
+    setIsCircleTurn(false);
+    setWinner(null);
+  };
+
+  const currentPlayer: Player = isCircleTurn ? "circle" : "x";
+
+  return (
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-r from-pink-500 to-pink-400 dark:from-gray-800 dark:to-gray-900 transition-colors duration-300 relative cursor-none">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
+      {!winner && (
+        <h1 className="text-white text-2xl mb-4">
+          {currentPlayer === "x" ? "X" : "O"} turns
+        </h1>
+      )}
+
+      {/* Use bg-gray-200 in light mode for contrast */}
+      <div className="rounded-lg shadow-xl bg-gray-800 dark:bg-gray-800 p-4">
+        <Board board={board} onCellClick={handleCellClick} />
+      </div>
+
+      {winner && <WinnerMessage winner={winner} onRestart={restartGame} />}
+
+      <div className="flex justify-between w-80 mt-8">
+        <div className="flex flex-col items-center">
+          <span className="text-white text-xl">X Winnings</span>
+          <span className="text-white text-2xl font-bold">{xWins}</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <div className="flex flex-col items-center">
+          <span className="text-white text-xl">Draws</span>
+          <span className="text-white text-2xl font-bold">{drawCount}</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-white text-xl">O Winnings</span>
+          <span className="text-white text-2xl font-bold">{oWins}</span>
+        </div>
+      </div>
+
+      <div
+        style={{ top: mouseY, left: mouseX }}
+        className="pointer-events-none fixed translate-x-[-50%] translate-y-[-50%]"
+      >
+        {currentPlayer === "x" ? (
+          <>
+            <div className="absolute h-[6px] w-[40px] bg-white rotate-45"></div>
+            <div className="absolute h-[6px] w-[40px] bg-white -rotate-45"></div>
+          </>
+        ) : (
+          <div className="h-8 w-8 border-4 border-white rounded-full"></div>
+        )}
+      </div>
     </div>
   );
 }
